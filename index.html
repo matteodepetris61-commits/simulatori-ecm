@@ -660,7 +660,10 @@ ISTRUZIONI PER IL FEEDBACK:
 - Valuta la risposta del professionista in modo costruttivo e specifico.
 - Se la risposta è corretta o parzialmente corretta: valida la parte giusta, aggiungi le evidenze di supporto con riferimento allo studio specifico.
 - Se la risposta è errata o incompleta: spiega l'errore con gentilezza, fornisci la risposta corretta ancorata alle LG e ai dati.
-- Ogni feedback deve citare almeno uno studio specifico o una linea guida.
+- Ogni feedback deve citare almeno uno studio specifico o una linea guida, tra quelli elencati sopra.
+- Non generalizzare oltre quanto riportato negli studi citati: se un dato riguarda una popolazione, un setting o un follow-up specifico, dillo esplicitamente invece di presentarlo come valido in assoluto.
+- Quando l'evidenza è limitata, indiretta (es. analisi pooled, post-hoc) o non ancora confermata da studi randomizzati dedicati, usa un linguaggio di cautela appropriato (es. "suggerisce", "sembra associato a", "dati preliminari indicano") invece di affermazioni categoriche — mantieni comunque il grado di certezza realmente espresso nella fonte originale, senza indebolire conclusioni che nella fonte sono invece solide.
+- Non introdurre conclusioni cliniche che non siano supportate dagli studi elencati in questo prompt.
 - Mantieni un tono da tutor clinico esperto: non giudicante, formativo, preciso.
 - Usa il nome "Mario" per rendere il feedback personale e contestualizzato.
 - Dopo il feedback, suggerisci sempre il prossimo passo logico nel percorso clinico.
@@ -799,15 +802,21 @@ ISTRUZIONI PER IL FEEDBACK:
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
+          model: 'claude-sonnet-5',
           max_tokens: 1000,
           system: systemPrompt,
           messages: conversationHistory
         })
       });
 
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}${errText ? ' — ' + errText.slice(0, 300) : ''}`);
+      }
+
       const data = await response.json();
-      const aiText = data.content?.[0]?.text || 'Errore nella risposta AI.';
+      const aiText = data.content?.[0]?.text;
+      if (!aiText) throw new Error('Risposta API senza contenuto testuale.');
 
       conversationHistory.push({ role: 'assistant', content: aiText });
 
@@ -830,15 +839,22 @@ ISTRUZIONI PER IL FEEDBACK:
       }
 
     } catch (err) {
+      conversationHistory.pop();
       typingMsg.innerHTML = `
         <div class="ai-label">Tutor Clinico AI</div>
-        <div class="feedback-wrong">Errore di connessione all'API. Verifica che il widget sia caricato con una chiave API valida.</div>
+        <div class="feedback-wrong">Errore di connessione all'API: ${escapeHtml(err.message || String(err))}. Verifica che il widget sia caricato con una chiave API valida.</div>
       `;
     }
 
     chatArea.scrollTop = chatArea.scrollHeight;
     isLoading = false;
     document.getElementById('sendBtn').disabled = false;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
   }
 
   function formatAIResponse(text) {
